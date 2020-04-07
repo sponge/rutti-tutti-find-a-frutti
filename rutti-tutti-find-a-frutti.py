@@ -80,7 +80,7 @@ for map_name, lump in pwad.maps.items():
                 break
 
     for k, line in enumerate(dmap.linedefs):
-        # if all the textures on the front and back are 128 height, we definitely do not have tutti
+        # if all the textures on the front and back are multiples of 128 high, we definitely do not have tutti
         line_textures = []
         front_side = dmap.sidedefs[line.front]
         back_side = dmap.sidedefs[line.back] if line.two_sided else None
@@ -98,8 +98,8 @@ for map_name, lump in pwad.maps.items():
         # lookup textures, filtering out empty textures which have a - as their name
         line_textures = [textures[x] for x in line_textures if x != '-']
 
-        if (all(x.height == 128 for x in line_textures)):
-            # all textures have 128 height, no tutti is possible
+        if (all(x.height % 128 == 0  for x in line_textures)):
+            # all texture heights are multiples of 128 no tutti is possible
             continue
 
         if not line.two_sided:
@@ -112,7 +112,7 @@ for map_name, lump in pwad.maps.items():
             if sector_height - abs(front_side.off_y) > tex_height:
                 warnings.append(
                     f'likely tutti at line #{k}: 1s sector height is {sector_height} and offset is {front_side.off_y} but texture {front_side.tx_mid} height is {tex_height}')
-                break
+
         else:
             sides = [('front', front_side, back_side),
                      ('back', back_side, front_side)]
@@ -124,8 +124,14 @@ for map_name, lump in pwad.maps.items():
                 low_tex = textures[side.tx_low] if side.tx_low != '-' else None
                 up_tex = textures[side.tx_up] if side.tx_up != '-' else None
 
-                # if there's a lower texture set and the texture height isn't 128, we potentially have an issue
-                if low_tex is not None and low_tex.height != 128:
+                if low_tex is not None and low_tex.height % 128 != 0 and line.lower_unpeg:
+                    warnings.append(f'possible tutti at line #{k}: {side_str} side has a lower texture {side.tx_low} with a height of {low_tex.height}, and lower unpegged is enabled')
+
+                if up_tex is not None and up_tex.height % 128 != 0 and line.upper_unpeg:
+                    warnings.append(f'possible tutti at line #{k}: {side_str} side has an upper texture {side.tx_up} with a height of {up_tex.height}, and upper unpegged is enabled')
+
+                # if there's a lower texture set and the texture height isn't a multiple of 128, we potentially have an issue for the wall height
+                if low_tex is not None and low_tex.height % 128 != 0:
                     # calculate the height of the floor part of the wall
                     lower_wall_height = sector.z_floor - other_sector.z_floor
                     
@@ -139,7 +145,7 @@ for map_name, lump in pwad.maps.items():
                             f'possible tutti at line #{k}: {side_str} side has a lower texture {side.tx_low} with a height of {low_tex.height}, y offset of {side.off_y}, and lower wall height of {lower_wall_height}')
 
                 # same thing as above, but comparing sector ceilings to determine ceiling wall size
-                if up_tex is not None and up_tex.height != 128:
+                if up_tex is not None and up_tex.height % 128 != 0:
                     upper_wall_height = sector.z_ceil - other_sector.z_ceil
                     if upper_wall_height < 0:
                         continue
